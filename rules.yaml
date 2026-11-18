@@ -1,0 +1,132 @@
+model: claude-haiku-5-5    # one model for all four steps
+ideas_per_run: 5           # how many ideas step 1 brainstorms
+
+levels:
+  L1:
+    name: Awareness
+    time: 30-45 minutes
+    functions: 2-3
+    words: [400, 750]
+    guidance: >-
+      Fully guided. State every function's exact rule, threshold and fallback, and give a sample for each.
+    trap: At most one, and the statement names it and says how to handle it.
+  L2:
+    name: Working Knowledge
+    time: 45-60 minutes
+    functions: 3-4
+    words: [550, 850]
+    guidance: >-
+      Guided. State each function's rules, thresholds, fallbacks and exact return values. The candidate
+      decides how to implement them.
+    trap: Exactly one. The statement mentions the case (e.g. "whether or not wrapped in a code fence") but not how to handle it.
+  L3:
+    name: Skilled Practice
+    time: 60-90 minutes
+    functions: 3-5
+    words: [500, 850]
+    guidance: >-
+      Unguided. State the goal, every signature and the exact return contract (keys, values, casing,
+      rounding, order), but not the decision rules: the candidate works them out from the shipped cases.
+    trap: One or two, discoverable only from the shipped cases or hidden tests.
+
+# ---------------------------------------------------------------------------
+# Ideas for traps that a naive solution gets wrong (step 1 may use these or invent its own)
+trap_ideas:
+  - The model's "JSON-only" reply comes wrapped in a code fence
+  - The model replies with a value outside the allowed set ("maybe", "PASS")
+  - The reply is not valid JSON at all; the code must fall back to a safe value
+  - An answer states a number that appears nowhere in the retrieved context
+  - An answer cites a document that was not retrieved
+  - A correct refusal ("I can't answer that") must not be failed
+  - A score lands exactly on the threshold ("at least" vs "greater than")
+  - Nothing was retrieved; scores must be 0.0 instead of crashing
+  - Inner verdicts are lowercase ("pass") but the summary label is title case ("Pass")
+  - Anything unexpected must route to a human, never to an automatic approval
+  - Hidden test cases have new IDs, so logic keyed to the shipped case IDs fails
+  - The evaluated text contains instructions aimed at the judge ("ignore previous instructions")
+
+avoid:
+  - Generic chatbot evaluators with no named organisation or stakes
+  - Re-skins of the reference problems (travel policy, contract clauses, support tone, academic integrity)
+  - To-do apps, library systems, shopping carts, calculators, puzzles
+
+# ---------------------------------------------------------------------------
+# The house format. Claude fills the <...> parts and leaves the [[...]] markers as they are;
+# the script replaces the markers with the fixed text below.
+template: |
+  # <Title, project-style, e.g. "Refund Claim Auditor">
+
+  ## Description
+  <1-2 sentences: what to build and the key tooling rule>
+
+  ## 📋 Instructions
+  [[INSTRUCTIONS]]
+
+  ## 🎯 Objective
+  <One paragraph: the organisation, its AI feature, what goes wrong and what it costs, what to build>
+
+  ## 📚 <Topic name> Concepts You'll Practice
+  - **<Concept>** — <1-2 sentences tying it to this problem>   (4-6 concepts)
+
+  ## Your Task
+  Implement <number in words> functions in main.py:
+  - `<signature>` — <what it does; rules as the level allows>
+  Parameters (`<main function>`): <each parameter, its type and contents>
+  Returns: a dict with these keys: <each key, exact type, allowed values, casing, rounding, order>
+  <any extra contract rules>
+  Sample:
+  ```python
+  <a sample call and its exact result>
+  ```
+
+  ## Environment Setup
+  File Structure:
+  ```
+  <project_folder>/
+  ├── <any fixed data file>  # <contents> (fixed, do not modify)
+  └── main.py  # <the functions>
+  ```
+  Open VS Code: Open the project folder in VS Code and launch the integrated terminal (Terminal → New Terminal).
+
+  <ONE of: [[OPENAI_SETUP]] or [[OPENAI_EMBEDDINGS_SETUP]] or [[OFFLINE_SETUP]]>
+
+  ## How to Run
+  ```bash
+  python main.py
+  ```
+  <One or two sentences starting "This calls ..." saying what it prints>
+
+  ## How to Evaluate
+  [[HOW_TO_EVALUATE]]
+
+# The section headings that must appear, in this order (check() function in generate.py)
+sections: [Description, Instructions, Objective, Concepts You'll Practice, Your Task, Environment Setup, How to Run, How to Evaluate]
+
+# Fixed text that replaces the [[...]] markers
+fixed_text:
+  INSTRUCTIONS: >-
+    Use the provided template code as the starting point. Implement your solution only within the TODO
+    blocks in main.py, and do not modify the project structure, file names, or function signatures. The
+    automated evaluation uses this template to assess your code, so any structural changes may cause your
+    submission to fail evaluation.
+  OPENAI_SETUP: |-
+    OpenAI Configuration: OpenAI is used as the LLM provider, with the API key read from the OPENAI_API_KEY environment variable. Use the gpt-4o-mini model, and point the OpenAI client at the proxy gateway below:
+
+    🔗 Proxy URL: https://llmgateway-lms.tekstac.com/v1
+
+    ```python
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://llmgateway-lms.tekstac.com/v1",
+    )
+    ```
+  OPENAI_EMBEDDINGS_SETUP: |-
+    OpenAI Configuration: OpenAI is used as the LLM provider and embedding provider, with the API key set in the OPENAI_API_KEY environment variable. Use the gpt-4o-mini chat model and the text-embedding-3-small embedding model. Route both through the proxy gateway below:
+
+    🔗 Proxy URL: https://llmgateway-lms.tekstac.com/v1
+  OFFLINE_SETUP: >-
+    No API keys needed: this exercise is fully offline. No OPENAI_API_KEY or proxy gateway is required.
+  HOW_TO_EVALUATE: |-
+    To evaluate your solution and view the score:
+
+    Click the "t" icon on the left side of the VS Code editor, select Evaluate to run the automated evaluation, and view the evaluation score and results once the evaluation is complete.
