@@ -52,8 +52,12 @@ class Pick(BaseModel):
     reason: str
 
 
+class Issue(BaseModel):
+    text: str
+    blocking: bool  
+
 class Review(BaseModel):
-    problems: list[str]        # empty if the statement is fine
+    issues: list[Issue]        # empty if the statement is fine
 
 
 client = None  # created in main(), after .env is loaded
@@ -62,7 +66,7 @@ client = None  # created in main(), after .env is loaded
 def ask(prompt: str, answer_shape=None, max_tokens: int = 16000):
     """Send one prompt to Claude. With answer_shape, get back a filled-in object; otherwise plain text."""
     request = dict(model=RULES["model"], max_tokens=max_tokens, system=SYSTEM,
-                   messages=[{"role": "user", "content": prompt}])
+                messages=[{"role": "user", "content": prompt}])
     if answer_shape:
         response = client.messages.parse(**request, output_format=answer_shape)
     else:
@@ -84,7 +88,7 @@ def describe_request(args) -> str:
     - Guidance: {level['guidance']}
     - Trap: {level['trap']}
     - Domain hint: {args.description or "none; choose a fitting, slightly unusual domain"}
-    - Tech stack: {args.stack or "whatever the topic needs"}"""
+    - Tech stack: {args.stack or "choose a fitting stack for the topic"}"""
 
 
 # ---------- the 4 steps ----------
@@ -133,55 +137,73 @@ def write(args, idea: Idea, feedback: list[str] | None = None, previous: str = "
 
     {RULES['template']}
 
-    Match the tone and level of detail of these reference problems, but do not reuse their scenarios:
+    Match the tone and level of detail of these reference problems, but do not reuse their scenarios.
+    They show the fixed text written out in full; do NOT copy it, write the [[...]] markers instead:
 
     {examples}
 
     Return only the Markdown statement."""
 
     if feedback:
-        prompt += (f"\n\n## Fix these problems in your previous draft\n{bullets(feedback)}"
-                   f"\n\n## Previous draft\n{previous}")
+        prompt += (f"\n\n## Fix these problems in your previous draft:\n{bullets(feedback)}"
+                   f"\n\n## Previous draft:\n{previous}")
     return strip_fence(ask(prompt))
 
 
-def check(args, statement: str) -> list[str]:
-    problems = []
+def check(args, statement: str) -> tuple[list[str], list[str]]:
+    """Returns (blocking problems that trigger a rewrite, minor notes that are only printed)."""
+    blocking = []
 
     # Code checks: sections in the right order, markers present, length
     headings = [line.replace("’", "'") for line in statement.splitlines() if line.startswith("## ")]
     positions = [next((i for i, h in enumerate(headings) if name in h), -1) for name in RULES["sections"]]
     if -1 in positions or positions != sorted(positions):
-        problems.append(f"Sections must all appear as ## headings, in this order: {', '.join(RULES['sections'])}.")
-    for marker in ["[[INSTRUCTIONS]]", "[[HOW_TO_EVALUATE]]"]:
-        if statement.count(marker) != 1:
-            problems.append(f"The marker {marker} must appear exactly once.")
+        blocking.append(f"Sections must all appear as ## headings, in this order: {', '.join(RULES['sections'])}.")
+
+
     setup_markers = ["[[OPENAI_SETUP]]", "[[OPENAI_EMBEDDINGS_SETUP]]", "[[OFFLINE_SETUP]]"]
-    if sum(statement.count(m) for m in setup_markers) != 1:
-        problems.append(f"Use exactly one setup marker: {', '.join(setup_markers)}.")
+    setup_written_out = "llmgateway-lms.tekstac.com" in statement or "no api key" in statement.lower() or "fully offline" in statement.lower()
+    if sum(statement.count(m) for m in setup_markers) != 1 and not setup_written_out:
+        blocking.append(f"Environment Setup needs exactly one setup marker: {', '.join(setup_markers)}.")
+     
+    finished = fill_fixed_text(statement)  # what the candidate will actually read
     low, high = RULES["levels"][args.level]["words"]
-    words = len(re.findall(r"\w+", fill_fixed_text(statement)))
-    if not low * 0.9 <= words <= high * 1.1:
-        problems.append(f"The statement is {words} words; aim for {low}-{high}.")
+    words = len(re.findall(r"\w+", finished))
+    if not low * 0.8 <= words <= high * 1.2:
+        blocking.append(f"The statement is {words} words; aim for {low}-{high}.")
 
-
+    # Claude check: read the finished statement as a candidate would
     prompt = f"""{describe_request(args)}
+    You are reviewing this problem statement before it is given to {args.level} candidates.
+    Mark an issue as blocking ONLY if one of these is true:
+    - a candidate cannot know an exact return value, key, type, casing, rounding or order that the hidden tests check
+    - the statement gives away the trap more than the level allows
+    - the statement contradicts itself
+    Everything else is not blocking: wording, style, suggestions, nice-to-have extra detail.
+    Things the level deliberately leaves to the candidate (see Guidance above) are NOT issues at all.
+    Fixed boilerplate (Instructions, OpenAI configuration, How to Evaluate) is correct; ignore it.
+    Return an empty list if there are no issues.
+    {finished}"""
 
-            You are a {args.level} candidate reading this problem statement. List only real problems:
-            - anything you would have to ask before you could write code that the hidden tests accept
-            (unclear return keys, values, casing, rounding, order, or behaviour on bad input)
-            - anything that gives away the trap more than the level allows
-            - contradictions, or requirements that can't be checked automatically
-            Return an empty list if there are none.
-
-            {statement}"""
-    return problems + ask(prompt, Review, max_tokens=8000).problems
+    issues = ask(prompt, Review, max_tokens=8000).issues
+    blocking += [i.text for i in issues if i.blocking]
+    notes = [i.text for i in issues if not i.blocking]
+    return blocking, notes
 
 
 def fill_fixed_text(statement: str) -> str:
     for name, text in RULES["fixed_text"].items():
         statement = statement.replace(f"[[{name}]]", text.strip())
-    return statement
+    statement = replace_section(statement, "Instructions", RULES["fixed_text"]["INSTRUCTIONS"])
+    statement = replace_section(statement, "How to Evaluate", RULES["fixed_text"]["HOW_TO_EVALUATE"])
+    return statement.strip()
+
+
+def replace_section(statement: str, heading: str, body: str) -> str:
+    """Replace the text under the '## ... <heading>' line, up to the next '## ' heading, with body."""
+    pattern = rf"(^## [^\n]*{re.escape(heading)}[^\n]*\n)(.*?)(?=^## |\Z)"
+    return re.sub(pattern, lambda m: m.group(1) + "\n" + body.strip() + "\n\n", statement,
+                  count=1, flags=re.MULTILINE | re.DOTALL)
 
 
 # ---------- small helpers ----------
@@ -215,7 +237,7 @@ def save(args, statement: str) -> Path:
 
 def main():
     global client
-    parser = argparse.ArgumentParser(description="Generate an assessment problem statement.")
+    parser = argparse.ArgumentParser(description="Generate a problem statement.")
     parser.add_argument("--course", required=True)
     parser.add_argument("--topic", required=True)
     parser.add_argument("--level", required=True, choices=sorted(RULES["levels"]))
@@ -240,20 +262,24 @@ def main():
     print("3/4 Writing the statement...")
     statement = write(args, idea)
 
-    print("4/4 Checking it...")
-    problems = check(args, statement)
-    if problems:
-        print(f"    {len(problems)} problem(s) found, rewriting once:")
-        print(bullets(problems))
-        statement = write(args, idea, feedback=problems, previous=statement)
-        problems = check(args, statement)
+    print("4/4 Checking...")
+    blocking, notes = check(args, statement)
+    if blocking:
+        print(f"    {len(blocking)} blocking problem(s) found, rewriting once:")
+        print(bullets(blocking))
+        statement = write(args, idea, feedback=blocking, previous=statement)
+        blocking, notes = check(args, statement)
+    else:
+        print("    No blocking problems.")
 
     path = save(args, fill_fixed_text(statement))
     print(f"\nSaved: {path}")
-    if problems:
-        print("Check if these problems still need to be addressed:")
-        print(bullets(problems))
-
+    if blocking:
+        print(f"Still {len(blocking)} blocking found, check these before using:")
+        print(bullets(blocking))
+    if notes:
+        print("Minor notes (optional):")
+        print(bullets(notes))
 
 if __name__ == "__main__":
     main()

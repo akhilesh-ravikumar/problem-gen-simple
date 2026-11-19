@@ -1,5 +1,5 @@
-model: claude-haiku-5-5    # one model for all four steps
-ideas_per_run: 5           # how many ideas step 1 brainstorms
+model: claude-haiku-5-5   
+ideas_per_run: 5           
 
 levels:
   L1:
