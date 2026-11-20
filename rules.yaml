@@ -1,114 +1,141 @@
-model: claude-haiku-5-5   
-ideas_per_run: 5           
+# Everything the generator needs to know, in one place. Edit this file to change its behaviour.
+
+# Which model each step uses. Creative steps get a stronger model; judging and checking stay cheap.
+models:
+  research: claude-haiku-5-5
+  brainstorm: claude-haiku-5-5
+  pick: claude-haiku-5-5
+  write: claude-haiku-5-5
+  check: claude-haiku-5-5
+
+ideas_per_run: 5 
+
+search:
+  queries: 3 
+  results_per_query: 3     # results asked for per search
+  max_results: 5           # total results Claude reads, the most relevant ones across all searches
+  snippet_chars: 300        
 
 levels:
   L1:
     name: Awareness
     time: 30-45 minutes
-    functions: 2-3
+    tasks: 2-3 small pieces of code (functions, methods or fixes)
     words: [400, 750]
     guidance: >-
-      Fully guided. State every function's exact rule, threshold and fallback, and give a sample for each.
+      Fully guided. State every rule, threshold and fallback exactly, and give a sample for each task.
     trap: At most one, and the statement names it and says how to handle it.
   L2:
     name: Working Knowledge
     time: 45-60 minutes
-    functions: 3-4
+    tasks: 3-4 pieces of code
     words: [550, 850]
     guidance: >-
-      Guided. State each function's rules, thresholds, fallbacks and exact return values. The candidate
-      decides how to implement them.
-    trap: Exactly one. The statement mentions the case (e.g. "whether or not wrapped in a code fence") but not how to handle it.
+      Guided. State each task's rules, thresholds, fallbacks and exact outputs. The candidate decides how
+      to implement them.
+    trap: Exactly one. The statement mentions the case but not how to handle it.
   L3:
     name: Skilled Practice
     time: 60-90 minutes
-    functions: 3-5
+    tasks: 3-5 pieces of code, possibly across more than one file
     words: [500, 850]
     guidance: >-
-      Unguided. State the goal, every signature and the exact return contract (keys, values, casing,
-      rounding, order), but not the decision rules: the candidate works them out from the shipped cases.
-    trap: One or two, discoverable only from the shipped cases or hidden tests.
+      Unguided. State the goal, every interface and the exact expected outputs, but not the decision
+      rules or the approach: the candidate works them out from the provided code and data.
+    trap: One or two, discoverable only from the provided code, data or hidden tests.
 
 # ---------------------------------------------------------------------------
-# Ideas for traps that a naive solution gets wrong (step 1 may use these or invent its own)
+# Creativity: each brainstormed idea uses a DIFFERENT task shape, so the TODOs are not all alike
+task_shapes:
+  - Fix a broken module whose bug shows up as a business symptom (wrong totals, missed alerts)
+  - Extend existing code by following the pattern it already uses, plus one awkward new case
+  - Build a small end-to-end pipeline (load, transform, decide, report)
+  - Make fragile code robust to messy real-world input without changing its interface
+  - Write a validator or guard that blocks bad data or bad model output before it reaches users
+  - Turn a log, transcript or event stream into a decision or a report
+  - Implement a scorer or evaluator with exact, explainable results
+  - Route or prioritise items with a safe default for anything unexpected
+  - Reconcile two sources that disagree and explain every difference
+  - Migrate data or prompts from an old format to a new one without losing meaning
+
+# Examples of traps; the research step also lists mistakes specific to the topic
 trap_ideas:
-  - The model's "JSON-only" reply comes wrapped in a code fence
-  - The model replies with a value outside the allowed set ("maybe", "PASS")
-  - The reply is not valid JSON at all; the code must fall back to a safe value
-  - An answer states a number that appears nowhere in the retrieved context
-  - An answer cites a document that was not retrieved
-  - A correct refusal ("I can't answer that") must not be failed
-  - A score lands exactly on the threshold ("at least" vs "greater than")
-  - Nothing was retrieved; scores must be 0.0 instead of crashing
-  - Inner verdicts are lowercase ("pass") but the summary label is title case ("Pass")
-  - Anything unexpected must route to a human, never to an automatic approval
-  - Hidden test cases have new IDs, so logic keyed to the shipped case IDs fails
-  - The evaluated text contains instructions aimed at the judge ("ignore previous instructions")
+  - Input looks valid but uses a different unit, time zone, casing or encoding
+  - A value lands exactly on a threshold ("at least" vs "greater than")
+  - Empty input, a missing field, or a null that means something
+  - Duplicates that differ only by whitespace or case
+  - A model's "JSON-only" reply comes wrapped in a code fence or is invalid
+  - A model replies with a value outside the allowed set
+  - Anything unexpected must take the safe path, never an automatic approval
+  - Hidden test cases have new IDs, so logic keyed to the shipped cases fails
+  - Text being processed contains instructions aimed at the system ("ignore previous instructions")
 
 avoid:
-  - Generic chatbot evaluators with no named organisation or stakes
+  - Generic settings with no named organisation, users or stakes
   - Re-skins of the reference problems (travel policy, contract clauses, support tone, academic integrity)
-  - To-do apps, library systems, shopping carts, calculators, puzzles
+  - To-do apps, library systems, shopping carts, calculators, puzzles, CRUD with no twist
+  - Tasks that a single LLM prompt could solve without running or inspecting the provided material
 
 # ---------------------------------------------------------------------------
-# The house format. Claude fills the <...> parts and leaves the [[...]] markers as they are;
+# The house format. Claude fills the <...> parts and keeps the [[...]] markers;
 # the script replaces the markers with the fixed text below.
 template: |
-  # <Title, project-style, e.g. "Refund Claim Auditor">
+  # <Title, project-style, e.g. "Cold Chain Alert Fixer">
 
   ## Description
-  <1-2 sentences: what to build and the key tooling rule>
+  <1-2 sentences: what to build or fix, and any key tooling rule>
 
   ## 📋 Instructions
   [[INSTRUCTIONS]]
 
   ## 🎯 Objective
-  <One paragraph: the organisation, its AI feature, what goes wrong and what it costs, what to build>
+  <One paragraph: the organisation, the real-world situation, what is going wrong and what it costs, what to build>
 
   ## 📚 <Topic name> Concepts You'll Practice
   - **<Concept>** — <1-2 sentences tying it to this problem>   (4-6 concepts)
 
   ## Your Task
-  Implement <number in words> functions in main.py:
-  - `<signature>` — <what it does; rules as the level allows>
-  Parameters (`<main function>`): <each parameter, its type and contents>
-  Returns: a dict with these keys: <each key, exact type, allowed values, casing, rounding, order>
-  <any extra contract rules>
+  <What to implement or fix, in whatever shape the idea needs: functions, class methods, a CLI command,
+   changes across files. For each piece give its exact name/signature and exact expected output
+   (types, keys, allowed values, casing, rounding, order), as much of the rules as the level allows,
+   and any extra contract rules.>
   Sample:
-  ```python
-  <a sample call and its exact result>
+  ```<language>
+  <a sample input and its exact output>
   ```
 
   ## Environment Setup
   File Structure:
   ```
   <project_folder>/
-  ├── <any fixed data file>  # <contents> (fixed, do not modify)
-  └── main.py  # <the functions>
+  ├── <provided file>  # <contents> (fixed, do not modify)
+  └── <file with TODOs>  # <what to implement>
   ```
   Open VS Code: Open the project folder in VS Code and launch the integrated terminal (Terminal → New Terminal).
 
-  <ONE of: [[OPENAI_SETUP]] or [[OPENAI_EMBEDDINGS_SETUP]] or [[OFFLINE_SETUP]]>
+  <What the candidate needs to run it: packages, data files, services. If the code calls OpenAI, write exactly
+   one marker: [[OPENAI_SETUP]] (chat only) or [[OPENAI_EMBEDDINGS_SETUP]] (chat + embeddings).
+   If nothing external is needed, write [[OFFLINE_SETUP]].>
 
   ## How to Run
   ```bash
-  python main.py
+  <the command, e.g. python main.py>
   ```
-  <One or two sentences starting "This calls ..." saying what it prints>
+  <One or two sentences starting "This ..." saying what it does and prints>
 
   ## How to Evaluate
   [[HOW_TO_EVALUATE]]
 
-# The section headings that must appear, in this order (check() function in generate.py)
+# The section headings that must appear, in this order (check() in generate.py)
 sections: [Description, Instructions, Objective, Concepts You'll Practice, Your Task, Environment Setup, How to Run, How to Evaluate]
 
 # Fixed text that replaces the [[...]] markers
 fixed_text:
   INSTRUCTIONS: >-
     Use the provided template code as the starting point. Implement your solution only within the TODO
-    blocks in main.py, and do not modify the project structure, file names, or function signatures. The
-    automated evaluation uses this template to assess your code, so any structural changes may cause your
-    submission to fail evaluation.
+    blocks, and do not modify the project structure, file names, or function signatures. The automated
+    evaluation uses this template to assess your code, so any structural changes may cause your submission
+    to fail evaluation.
   OPENAI_SETUP: |-
     OpenAI Configuration: OpenAI is used as the LLM provider, with the API key read from the OPENAI_API_KEY environment variable. Use the gpt-4o-mini model, and point the OpenAI client at the proxy gateway below:
 

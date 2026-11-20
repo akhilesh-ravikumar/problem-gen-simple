@@ -1,0 +1,56 @@
+goal:
+Generate new problem statements automatically, in our existing format.
+
+input: Course, topic and level.
+optional-input: a short description and a tech stack.
+
+output:
+One problem statement file, ready to use.
+
+workflow:
+1. prompt for 5 different problem ideas.
+2. pick the best one.
+3. prompt to write the full statement using our template.
+4. Check the result. 
+5. If something wrong, rewrite once.
+
+existing:
+1. existing problems, as examples of the style we want.
+2. the standard text (instructions, setup, how to evaluate), inserted exactly as it is.
+
+Not implementing now:
+Starter code files, test data, evaluation pipeline and mcqs.
+Levels L4 and L5.
+
+
+
+1. plain python with venv: the tool only calls an API and writes files
+
+2. One rules file: change level, template, what to avoid, fixed content
+
+3. brainstorm multiple instead of 1 idea: single prompt returns the most common problem. brainstoming brings variation.
+
+4. picking an idea scores are based on: level fit, auto-gradeable, practises the topic, has a trap(deliberate error).
+
+5. reference problems as examples: Claude copies the tone and level of detail
+
+6. check step with both code and Claude:
+    Code catches deterministic errors: sections, markers, length
+    Claude catches others: ambiguity, a trap given away, contradictions.
+
+7. Only 1 rewrite: the problems found before rewrite is printed for manually verifying
+
+
+
+
+
+
+Update for v2:
+
+1. Claude lists the topic’s key concepts and common mistakes from its own knowledge, before searching (tavily).
+The search results supply realistic situations. Brainstorm combines both.
+
+2. number of searches, number of results obtained and number of results read are configurable. 
+
+3. concepts_tested and real_world_basis, are added newly to Idea generated. 
+

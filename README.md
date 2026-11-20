@@ -1,15 +1,19 @@
 # Problem Statement Generator
 
-Give it a course, a topic and a level. It writes a new hands-on problem statement in our house format
+Give it a course, a topic and a level. It researches how the topic is used in the real world, brainstorms
+original problems based on real cases, and writes the best one in our house format
 (Description → Instructions → Objective → Concepts → Your Task → Environment Setup → How to Run → How to Evaluate).
 
 ## How it works
 
-1. **Brainstorm**: Claude proposes 5 different problem ideas for the course, topic and level.
-2. **Pick**: Claude scores them (level fit, can be auto-graded, practises the topic, has a good trap) and picks one.
-3. **Write**: Claude writes the statement from our template, imitating the 4 reference problems in `examples/`.
-4. **Check**: the script checks sections, fixed text and length; Claude reads it as a candidate and lists anything unclear.
-   If there are problems, step 3 rewrites it once.
+1. **Research**: Claude lists the topic's key concepts and the mistakes practitioners really make, then writes
+   web searches for real, niche cases (incidents, case studies, unusual industry uses). Tavily runs them.
+2. **Brainstorm**: Claude proposes 5 ideas. Each is based on a real case, uses a different task shape
+   (fix a broken module, build a pipeline, write a validator...), tests key concepts and contains a trap.
+3. **Pick**: Claude chooses the most interesting idea that tests the key concepts and fits the level.
+4. **Write**: Claude writes the statement. The reference problems in `examples/` set the format, not the shape.
+5. **Check**: the script checks sections, OpenAI setup and length; Claude reads it as a candidate.
+   If anything is blocking, step 4 rewrites it once.
 
 Fixed text (Instructions, OpenAI proxy setup, How to Evaluate) is inserted by the script, never written by Claude.
 
@@ -17,33 +21,29 @@ Fixed text (Instructions, OpenAI proxy setup, How to Evaluate) is inserted by th
 
 | File | What it is |
 |---|---|
-| `generate.py` | The whole program: the 4 steps and the prompts |
-| `rules.yaml` | Everything you might want to change: model, level rules, trap ideas, the template, the fixed text |
-| `examples/` | The 4 reference problems Claude imitates |
-| `output/` | Generated statements, one `.md` file per run |
+| `generate.py` | The whole program: the 5 steps and their prompts |
+| `rules.yaml` | Everything you might change: models per step, search settings, levels, task shapes, trap ideas, template, fixed text |
+| `examples/` | Reference problems for format and level of detail |
+| `output/` | For each run: the statement `.md`, plus a `_sources.md` for reviewers (real cases used, concepts, trap) |
 
 ## Setup (Windows, once)
 
-1. Install Python 3.12+ from python.org (tick **Add python.exe to PATH**) and the **Python** extension in VS Code.
-2. Open this folder in VS Code, then open a terminal (**Terminal → New Terminal**) and run:
-
 ```powershell
-py -m venv .venv
+py -3.13 -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
 ```
 
-3. Open `.env` and paste your Anthropic API key.
-4. In VS Code: `Ctrl+Shift+P` → **Python: Select Interpreter** → pick the one in `.venv`.
-
-If `activate` is blocked, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then try again.
+Open `.env` and paste your Anthropic key. For web search, also paste a Tavily key
+(free at app.tavily.com, 1,000 searches a month). Without a Tavily key the generator still works, just without search.
 
 ## Run
 
 ```powershell
 python generate.py --course "LLM Evaluation methods and frameworks" --topic "LLM-as-judge" --level L2
-python generate.py --course "LLM Evaluation methods and frameworks" --topic "Ragas metrics" --level L3 --description "an insurance claims assistant" --stack "python,ragas"
+python generate.py --course "Data Engineering" --topic "Data validation" --level L3 --description "vaccine cold chain" --stack "python,pandas"
 ```
 
-The statement is saved in `output/`. A run takes 1-3 minutes and costs roughly $0.10-$0.20.
+A run takes 2-4 minutes. Estimated cost: about $0.15-$0.25 in Claude tokens, plus 4 Tavily searches
+(free within the monthly allowance, otherwise about $0.03).
