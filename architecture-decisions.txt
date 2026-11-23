@@ -54,3 +54,9 @@ The search results supply realistic situations. Brainstorm combines both.
 
 3. concepts_tested and real_world_basis, are added newly to Idea generated. 
 
+
+update for v3:
+1. Instead of claude coming up with creative problem types, have predefined problem flavours (Area, platform and input material)
+
+2. have types of tasks and expected outputs for grading. 
+

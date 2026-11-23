@@ -19,16 +19,14 @@ search:
 levels:
   L1:
     name: Awareness
-    time: 30-45 minutes
-    tasks: 2-3 small pieces of code (functions, methods or fixes)
+    tasks: 2-3 small pieces of work
     words: [400, 750]
     guidance: >-
       Fully guided. State every rule, threshold and fallback exactly, and give a sample for each task.
     trap: At most one, and the statement names it and says how to handle it.
   L2:
     name: Working Knowledge
-    time: 45-60 minutes
-    tasks: 3-4 pieces of code
+    tasks: 3-4 pieces of work
     words: [550, 850]
     guidance: >-
       Guided. State each task's rules, thresholds, fallbacks and exact outputs. The candidate decides how
@@ -36,8 +34,7 @@ levels:
     trap: Exactly one. The statement mentions the case but not how to handle it.
   L3:
     name: Skilled Practice
-    time: 60-90 minutes
-    tasks: 3-5 pieces of code, possibly across more than one file
+    tasks: 3-5 pieces of work, possibly across more than one file or service
     words: [500, 1050]
     guidance: >-
       Unguided. State the goal, every interface and the exact expected outputs, but not the decision
@@ -45,36 +42,93 @@ levels:
     trap: One or two, discoverable only from the provided code, data or hidden tests.
 
 # ---------------------------------------------------------------------------
-# Creativity: each brainstormed idea uses a DIFFERENT task shape, so the TODOs are not all alike
+# Variety. When --area or --platform is not given, the script picks one at random.
+# An area that names an AWS service (Bedrock, SageMaker, AWS) always gets the aws platform.
+areas:
+  - RAG pipelines (chunking, retrieval, reranking)
+  - Embeddings and vector search
+  - LLM evaluation and LLM-as-judge
+  - Agents and tool use
+  - Structured outputs and function calling
+  - Fine-tuning data preparation and training configuration (no real training jobs)
+  - Guardrails, safety and prompt-injection defence
+  - Multimodal AI (vision, OCR, speech-to-text)
+  - Cost and latency optimisation (caching, batching, model routing)
+  - Monitoring, tracing and drift detection for LLM applications
+  - Amazon Bedrock Knowledge Bases and Bedrock Agents
+  - Amazon SageMaker model deployment (endpoints, serverless inference)
+
+platforms:
+  offline:
+    description: >-
+      Runs locally in Python with no external services. Any model replies, embeddings or predictions the
+      task needs are provided as files.
+    setup: >-
+      No API keys needed: this exercise is fully offline. No OPENAI_API_KEY or proxy gateway is required.
+  openai:
+    description: >-
+      Calls OpenAI (gpt-4o-mini for chat, text-embedding-3-small for embeddings) through the company proxy.
+      Hidden tests replace the model with scripted replies.
+    setup: |-
+      OpenAI Configuration: OpenAI is used as the LLM provider, with the API key read from the OPENAI_API_KEY environment variable. Use the gpt-4o-mini chat model and, where embeddings are needed, the text-embedding-3-small embedding model. Route all calls through the proxy gateway below:
+
+      🔗 Proxy URL: https://llmgateway-lms.tekstac.com/v1
+
+      ```python
+      client = OpenAI(
+          api_key=api_key,
+          base_url="https://llmgateway-lms.tekstac.com/v1",
+      )
+      ```
+  aws:
+    description: >-
+      A temporary AWS account is provisioned for the candidate, with AWS services including Amazon Bedrock,
+      SageMaker, S3, Lambda and IAM available. The candidate can use the console and the AWS CLI / boto3.
+      Time and resources on the account are tracked and limited server-side, and the grader inspects it after submission,
+      so every resource the grader checks needs an exact name, region and settings. No real training jobs.
+    setup: |-
+      AWS Configuration: A temporary AWS account has been provisioned for you. Credentials are already configured in the terminal, so the AWS CLI and boto3 work without extra setup, and you can also use the AWS Management Console. Create every resource with the exact names, region and settings given in this statement: the automated evaluation inspects your account after you submit.
+
+      Resources on this account are tracked and limited. Use the smallest instance types that work, avoid long-running jobs, and delete anything you create that the task does not ask you to keep.
+
+# Kinds of material the candidate works with. Each brainstormed idea uses a different one.
+materials:
+  - Tables (CSV files or a SQLite database)
+  - JSONL datasets
+  - A small set of documents (Markdown, text or PDF)
+  - Application logs or traces
+  - Chat transcripts
+  - Images or scanned documents
+  - Configuration files (IAM policies, CloudFormation, prompt templates)
+
+# Kinds of work. Each brainstormed idea uses a different one.
 task_shapes:
-  - Fix a broken module whose bug shows up as a business symptom (wrong totals, missed alerts)
-  - Extend existing code by following the pattern it already uses, plus one awkward new case
+  - Fix something broken whose bug shows up as a business symptom
+  - Extend existing code by following its pattern, plus one awkward new case
   - Build a small end-to-end pipeline (load, transform, decide, report)
   - Make fragile code robust to messy real-world input without changing its interface
-  - Write a validator or guard that blocks bad data or bad model output before it reaches users
-  - Turn a log, transcript or event stream into a decision or a report
+  - Write a validator or guard that blocks bad data or bad model output
+  - Analyse logs, traces or tables and produce a decision or report
   - Implement a scorer or evaluator with exact, explainable results
-  - Route or prioritise items with a safe default for anything unexpected
-  - Reconcile two sources that disagree and explain every difference
-  - Migrate data or prompts from an old format to a new one without losing meaning
-
-# Examples of traps; the research step also lists mistakes specific to the topic
-trap_ideas:
-  - Input looks valid but uses a different unit, time zone, casing or encoding
-  - A value lands exactly on a threshold ("at least" vs "greater than")
-  - Empty input, a missing field, or a null that means something
-  - Duplicates that differ only by whitespace or case
-  - A model's "JSON-only" reply comes wrapped in a code fence or is invalid
-  - A model replies with a value outside the allowed set
-  - Anything unexpected must take the safe path, never an automatic approval
-  - Hidden test cases have new IDs, so logic keyed to the shipped cases fails
-  - Text being processed contains instructions aimed at the system ("ignore previous instructions")
+  - Compare options against constraints (cost, latency, quality) and pick one
+  - Configure and wire up cloud resources to meet a stated requirement
+  - Migrate data, prompts or configuration from an old format to a new one
 
 avoid:
   - Generic settings with no named organisation, users or stakes
-  - Re-skins of the reference problems (travel policy, contract clauses, support tone, academic integrity)
   - To-do apps, library systems, shopping carts, calculators, puzzles, CRUD with no twist
   - Tasks that a single LLM prompt could solve without running or inspecting the provided material
+
+# How every statement should be written (replaces reference examples)
+style_guide:
+  - Name everything exactly - files, functions, CLI commands, AWS resources, output keys - so hidden tests can find them.
+  - Give exact outputs - types, allowed values, casing, rounding, order - plus one sample input and its exact output.
+  - Tell a concrete story - a fictional organisation, the people involved, real numbers, what went wrong and what it cost. Never name a real company.
+  - Describe the provided material precisely - file names, columns or fields, how many records - so it can be generated later.
+  - Hint exactly as much as the level allows; never explain the trap beyond that.
+  - Anything that depends on a model's reply must be gradable with scripted replies or structure checks, never on wording.
+  - For AWS, state the region and every resource the grader will inspect, with its name and required settings.
+  - Plain, direct, second person. No marketing language.
 
 # ---------------------------------------------------------------------------
 # The house format. Claude fills the <...> parts and keeps the [[...]] markers;
@@ -91,14 +145,13 @@ template: |
   ## 🎯 Objective
   <One paragraph: the organisation, the real-world situation, what is going wrong and what it costs, what to build>
 
-  ## 📚 <Topic name> Concepts You'll Practice
+  ## 📚 <Area name> Concepts You'll Practice
   - **<Concept>** — <1-2 sentences tying it to this problem>   (4-6 concepts)
 
   ## Your Task
-  <What to implement or fix, in whatever shape the idea needs: functions, class methods, a CLI command,
-   changes across files. For each piece give its exact name/signature and exact expected output
-   (types, keys, allowed values, casing, rounding, order), as much of the rules as the level allows,
-   and any extra contract rules.>
+  <What to implement, fix or configure, in whatever shape the idea needs. For each piece give its exact name
+   (function signature, file, command or AWS resource) and exact expected output, as much of the rules as
+   the level allows, and any extra contract rules.>
   Sample:
   ```<language>
   <a sample input and its exact output>
@@ -113,9 +166,9 @@ template: |
   ```
   Open VS Code: Open the project folder in VS Code and launch the integrated terminal (Terminal → New Terminal).
 
-  <What the candidate needs to run it: packages, data files, services. If the code calls OpenAI, write exactly
-   one marker: [[OPENAI_SETUP]] (chat only) or [[OPENAI_EMBEDDINGS_SETUP]] (chat + embeddings).
-   If nothing external is needed, write [[OFFLINE_SETUP]].>
+  <Any packages or provided data the candidate needs; for AWS, the region and resources to create>
+
+  [[SETUP]]
 
   ## How to Run
   ```bash
@@ -136,23 +189,6 @@ fixed_text:
     blocks, and do not modify the project structure, file names, or function signatures. The automated
     evaluation uses this template to assess your code, so any structural changes may cause your submission
     to fail evaluation.
-  OPENAI_SETUP: |-
-    OpenAI Configuration: OpenAI is used as the LLM provider, with the API key read from the OPENAI_API_KEY environment variable. Use the gpt-4o-mini model, and point the OpenAI client at the proxy gateway below:
-
-    🔗 Proxy URL: https://llmgateway-lms.tekstac.com/v1
-
-    ```python
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://llmgateway-lms.tekstac.com/v1",
-    )
-    ```
-  OPENAI_EMBEDDINGS_SETUP: |-
-    OpenAI Configuration: OpenAI is used as the LLM provider and embedding provider, with the API key set in the OPENAI_API_KEY environment variable. Use the gpt-4o-mini chat model and the text-embedding-3-small embedding model. Route both through the proxy gateway below:
-
-    🔗 Proxy URL: https://llmgateway-lms.tekstac.com/v1
-  OFFLINE_SETUP: >-
-    No API keys needed: this exercise is fully offline. No OPENAI_API_KEY or proxy gateway is required.
   HOW_TO_EVALUATE: |-
     To evaluate your solution and view the score:
 

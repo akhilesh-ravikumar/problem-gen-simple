@@ -1,30 +1,32 @@
 # Problem Statement Generator
 
-Give it a course, a topic and a level. It researches how the topic is used in the real world, brainstorms
-original problems based on real cases, and writes the best one in our house format
+Give it a course, a topic and a level. It picks a technology area and platform (or uses yours), researches real,
+recent cases, brainstorms varied problems and writes the best one in our house format
 (Description → Instructions → Objective → Concepts → Your Task → Environment Setup → How to Run → How to Evaluate).
 
 ## How it works
 
-1. **Research**: Claude lists the topic's key concepts and the mistakes practitioners really make, then writes
-   web searches for real, niche cases (incidents, case studies, unusual industry uses). Tavily runs them.
-2. **Brainstorm**: Claude proposes 5 ideas. Each is based on a real case, uses a different task shape
-   (fix a broken module, build a pipeline, write a validator...), tests key concepts and contains a trap.
-3. **Pick**: Claude chooses the most interesting idea that tests the key concepts and fits the level.
-4. **Write**: Claude writes the statement. The reference problems in `examples/` set the format, not the shape.
-5. **Check**: the script checks sections, OpenAI setup and length; Claude reads it as a candidate.
-   If anything is blocking, step 4 rewrites it once.
+0. **Choose**: area (e.g. RAG, guardrails, Bedrock Knowledge Bases) and platform (offline, openai, aws).
+   Given with `--area` / `--platform`, otherwise picked at random from `rules.yaml`.
+   Areas naming Bedrock, SageMaker or AWS always use the aws platform.
+1. **Research**: Claude lists the area's key concepts and common mistakes and writes web searches;
+   Tavily finds a few recent real cases (only short snippets are kept).
+2. **Brainstorm**: 5 ideas, each based on a real case, each with a different task shape and material
+   (tables, JSONL, documents, logs, transcripts, images, config files).
+3. **Pick**: the most interesting idea that tests the key concepts, fits the level and is doable in time and budget.
+4. **Write**: Claude writes the statement from the template and style guide.
+5. **Check**: the script checks sections and length; Claude reads it as a candidate. Blocking issues trigger one rewrite.
 
-Fixed text (Instructions, OpenAI proxy setup, How to Evaluate) is inserted by the script, never written by Claude.
+The script inserts the fixed text: Instructions, the platform's setup block (offline / OpenAI proxy / AWS account), and How to Evaluate.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `generate.py` | The whole program: the 5 steps and their prompts |
-| `rules.yaml` | Everything you might change: models per step, search settings, levels, task shapes, trap ideas, template, fixed text |
-| `examples/` | Reference problems for format and level of detail |
-| `output/` | For each run: the statement `.md`, plus a `_sources.md` for reviewers (real cases used, concepts, trap) |
+| `generate.py` | The whole program: the steps and their prompts |
+| `rules.yaml` | Everything you might change: models, search limits, levels, areas, platforms and their setup text, materials, task shapes, style guide, template, fixed text |
+| `output/` | Generated statements |
+| `output/sources/` | One `_sources.md` per statement for reviewers: area, platform, real case used, concepts, trap, how it is graded |
 
 ## Setup (Windows, once)
 
@@ -41,9 +43,9 @@ Open `.env` and paste your Anthropic key. For web search, also paste a Tavily ke
 ## Run
 
 ```powershell
-python generate.py --course "LLM Evaluation methods and frameworks" --topic "LLM-as-judge" --level L2
-python generate.py --course "Data Engineering" --topic "Data validation" --level L3 --description "vaccine cold chain" --stack "python,pandas"
+python generate.py --course "Generative AI Engineering" --topic "Retrieval-augmented generation" --level L2
+python generate.py --course "Generative AI Engineering" --topic "Guardrails" --level L3 --platform aws --area "Bedrock guardrails for a claims assistant"
+python generate.py --course "Applied LLMs" --topic "Fine-tuning" --level L2 --platform offline --area "Fine-tuning data preparation"
 ```
 
-A run takes 2-4 minutes. Estimated cost: about $0.15-$0.25 in Claude tokens, plus 4 Tavily searches
-(free within the monthly allowance, otherwise about $0.03).
+A run takes 2-4 minutes and costs roughly $0.15-$0.25, plus 3 Tavily searches.
