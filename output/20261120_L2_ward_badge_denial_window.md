@@ -1,3 +1,7 @@
+```bash 
+python generate.py --course "Cybersecurity Fundamentals" --topic "Log analysis for intrusion detection" --level L2 --description "hospital access system"   
+```
+
 # Ward Badge Denial Window
 
 ## Description

@@ -366,12 +366,12 @@ def main():
         sys.exit("ANTHROPIC_API_KEY is not set. Copy .env.example to .env and paste your key into it.")
     client = Anthropic()
     tavily_key = os.getenv("TAVILY_API_KEY", "")
-    if tavily_key and not tavily_key.endswith("..."):  # skip the placeholder from .env.example
+    if tavily_key and not tavily_key.endswith("..."):
         search_client = TavilyClient(api_key=tavily_key)
+        print("1/5 Researching the topic and searching the web...")
     else:
         print("(TAVILY_API_KEY not set: running without web search)")
 
-    print("1/5 Researching the topic and searching the web...")
     found, sources = research(args)
     print(f"    key concepts: {', '.join(found.key_concepts)}")
     snippet_tokens = sum(len(s["title"]) + len(s["url"]) + len(s["content"]) for s in sources) // 4

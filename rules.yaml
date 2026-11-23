@@ -38,7 +38,7 @@ levels:
     name: Skilled Practice
     time: 60-90 minutes
     tasks: 3-5 pieces of code, possibly across more than one file
-    words: [500, 850]
+    words: [500, 1050]
     guidance: >-
       Unguided. State the goal, every interface and the exact expected outputs, but not the decision
       rules or the approach: the candidate works them out from the provided code and data.

@@ -1,3 +1,7 @@
+```bash
+python generate.py --course "Data Engineering with Python" --topic "Data quality checks in ETL pipelines" --level L3 --description "a fisheries cooperative tracking daily catch landings" --stack "python,pandas"
+```
+
 # Scallop Tally Repair
 
 ## Description
